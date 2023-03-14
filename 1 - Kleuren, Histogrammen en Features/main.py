@@ -1,90 +1,54 @@
+from pathlib import Path
+
 import matplotlib.pyplot as plt
 import numpy as np
-from skimage import io
-from skimage.viewer import ImageViewer
+from skimage import color, io
 
 
-def progress_bar(current, total):
-    """ Prints progress bar. """
-    percentage = int(100 * current / total)
-    print("\r[", "#" * (percentage // 2), " " * (50 - percentage // 2), "]",
-          f" {percentage}%", sep="", end="")
+def preserve_color_range(image, color_range):
+    """
+    Returns een kopie van de image met alle pixels buiten het opgegeven kleurbereik ingesteld op grijstinten.
+    """
+
+    hue = color.rgb2hsv(image)[:, :, 0]
+    grayscale = color.gray2rgb(color.rgb2gray(image))
+
+    color_mask = np.logical_and(hue >= color_range[0], hue <= color_range[1])
+    grayscale[color_mask] = image[color_mask]
+
+    return grayscale
 
 
-def colorFilter(image, lower, upper):
+def plot_hue_histogram(ax, image, title):
+    """
+    Plots een histogram van de tintwaarden in het image.
+    """
+    bins = 20
+    range_ = (0, 1)
 
-    # Create a binary mask to select pixels in the specified color range
-    mask = np.logical_and(lower <= image, image <= upper).all(axis=-1)
-
-    # Convert the selected pixels to their original RGB values
-    image[mask] = np.round(image[mask]).astype(int)
-
-    # Convert the rest of the pixels to grayscale
-    gray = np.dot(image[~mask], [0.2126, 0.7152, 0.0722])
-    gray = np.round(gray).astype(int)
-    gray = np.stack([gray, gray, gray], axis=-1)
-
-    # Combine the grayscale and color pixels to form the final output
-    image[~mask] = gray
-
-    return image
-
-
-# def hue_histogram(image):
-def hue_histogram(image):
-    # Split the image into R, G and B channels
-    red_channel = image[:, :, 0]
-    green_channel = image[:, :, 1]
-    blue_channel = image[:, :, 2]
-
-    # Get the total number of pixels in the image
-    total_pixels = image.shape[0] * image.shape[1]
-
-    # Create a list to store the count of pixels for each intensity value in the channels
-    red_count = [0] * 256
-    green_count = [0] * 256
-    blue_count = [0] * 256
-
-    # Loop through each pixel in the image
-    for i in range(image.shape[0]):
-        for j in range(image.shape[1]):
-            # Increment the count for each intensity value in the R, G and B channels
-            red_count[red_channel[i, j]] += 1
-            green_count[green_channel[i, j]] += 1
-            blue_count[blue_channel[i, j]] += 1
-
-    # Normalize the count of pixels for each intensity value to get the probability density
-    red_density = [count / total_pixels for count in red_count]
-    green_density = [count / total_pixels for count in green_count]
-    blue_density = [count / total_pixels for count in blue_count]
-
-    # Plot the RGB histograms
-    plt.figure(figsize=(10, 5))
-    plt.plot(red_density, color='red', label='Red Channel')
-    plt.plot(green_density, color='green', label='Green Channel')
-    plt.plot(blue_density, color='blue', label='Blue Channel')
-    plt.xlabel('Intensity Value')
-    plt.ylabel('Pixel Count')
-    plt.legend()
-    plt.show()
+    image_hue = color.rgb2hsv(image)[:, :, 0].flatten()
+    ax.hist(image_hue, bins=bins, range=range_)
+    ax.set_title(title)
 
 
 def main():
-    # get the color.jpg image
-    img = io.imread("1 - Kleuren, Histogrammen en Features/color.jpg")
-    edited_img = img.copy()
+    fig, ((img1, img2, img3), (hist1, hist2, hist3)) = plt.subplots(2, 3)
 
-    # Define the color range to preserve (lower and upper bounds for each channel)
-    lower = np.array([222, 0, 0])
-    upper = np.array([255, 70, 15])
-    edited_img = colorFilter(edited_img, lower, upper)
+    image = io.imread(
+        "1 - Kleuren, Histogrammen en Features\color.jpg").astype(float)
 
-    viewer = ImageViewer(img)
-    viewer.show()
-    hue_histogram(img)
-    viewer = ImageViewer(edited_img)
-    viewer.show()
-    hue_histogram(edited_img)
+    img1.imshow(image.astype(int))
+    plot_hue_histogram(hist1, image, "Original")
+
+    red_grayscale = preserve_color_range(image, (345 / 360, 360 / 360))
+    img2.imshow(red_grayscale.astype(int))
+    plot_hue_histogram(hist2, red_grayscale, "Red filter")
+
+    blue_grayscale = preserve_color_range(image, (150 / 360, 210 / 360))
+    img3.imshow(blue_grayscale.astype(int))
+    plot_hue_histogram(hist3, blue_grayscale, "Blue filter")
+
+    plt.show()
 
 
 if __name__ == '__main__':
